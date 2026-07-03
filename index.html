@@ -10,6 +10,8 @@
     
     <!-- html2pdf.js para exportar a PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- jsPDF directo para evitar cortes por renderizado HTML/canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -18,15 +20,17 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             border-color: #4f46e5;
         }
-        
-        /* Contenedor temporal para generar el PDF (Oculto a la vista del usuario pero en el DOM) */
+        /* Contenedor temporal usado solo para renderizar el PDF.
+           No usar display:none ni visibility:hidden, porque html2canvas puede generar PDF en blanco. */
         #pdf-temp-container {
-            position: absolute;
-            left: -9999px;
+            position: fixed;
+            left: 0;
             top: 0;
-            width: 800px; /* Ancho fijo para garantizar consistencia en PDF */
-            background: white;
-            z-index: -1;
+            width: 816px;
+            min-height: 1056px;
+            background: #ffffff;
+            z-index: -9999;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -79,8 +83,7 @@
         <p class="text-xs mt-2 px-4 text-slate-500">Tus datos no se envían a ningún servidor externo. Todo se procesa localmente en tu navegador.</p>
     </footer>
 
-    <!-- Contenedor donde inyectaremos el HTML para el PDF -->
-    <div id="pdf-temp-container"></div>
+    <div id="pdf-temp-container" aria-hidden="true"></div>
 
     <script>
         // Los 10 ítems OFICIALES del InSynQ Checklist v1.0
@@ -142,7 +145,7 @@
             {
                 id: 'item-10',
                 title: 'Ítem 10. Cambios respecto al protocolo (Changes from protocol)',
-                guide: 'Identificar y justificar los cambios realizados en la etapa de revisión (review stage) a los grupos o comparaciones que se habían informado originalmente en el protocolo.',
+                guide: 'Identificar y justifycar los cambios realizados en la etapa de revisión (review stage) a los grupos o comparaciones que se habían informado originalmente en el protocolo.',
                 placeholder: 'Ej. Planeamos hacer análisis de subgrupos por nivel de severidad, pero debido a datos insuficientes, estos grupos se combinaron en el análisis principal...'
             }
         ];
@@ -177,90 +180,171 @@
 
         document.addEventListener('DOMContentLoaded', renderForm);
 
-        // Generar PDF asegurando que no salga en blanco
+        // Generar PDF - v2: usa jsPDF de forma directa, sin html2canvas.
+        // Esto evita hojas cortadas, contenido movido o escalado irregular.
         function generatePDF() {
             const btn = document.getElementById('pdf-btn');
             const originalText = btn.innerHTML;
             btn.innerHTML = 'Generando... por favor espera';
             btn.disabled = true;
 
-            // En lugar de un elemento "al vuelo", utilizamos un contenedor que ESTÁ en el DOM (pero oculto)
-            const pdfContainer = document.getElementById('pdf-temp-container');
-            
-            // Construir el HTML
-            let htmlContent = `
-                <div style="padding: 40px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; max-width: 800px; margin: 0 auto;">
-                    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4f46e5; padding-bottom: 20px;">
-                        <h1 style="color: #1e1b4b; font-size: 24px; margin: 0 0 10px 0; font-weight: bold;">InSynQ Checklist (v1.0)</h1>
-                        <h2 style="color: #475569; font-size: 16px; margin: 0 0 15px 0; font-weight: normal;">Intervention Synthesis Questions - Reporte</h2>
-                        <p style="color: #64748b; font-size: 12px; margin: 0;">Fecha de generación: ${new Date().toLocaleDateString()}</p>
-                    </div>
-            `;
+            try {
+                const answers = insynqItems
+                    .map(item => {
+                        const textarea = document.getElementById(item.id);
+                        return {
+                            ...item,
+                            value: textarea ? textarea.value.trim() : ''
+                        };
+                    })
+                    .filter(item => item.value !== '');
 
-            let hasContent = false;
-
-            // Extraer textos y ensamblar
-            insynqItems.forEach(item => {
-                const textarea = document.getElementById(item.id);
-                let value = textarea.value.trim();
-                
-                if (value !== '') {
-                    hasContent = true;
-                    // Escapar caracteres para evitar problemas de renderizado HTML
-                    const safeValue = value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    
-                    htmlContent += `
-                        <div style="margin-bottom: 25px; page-break-inside: avoid;">
-                            <h3 style="color: #312e81; font-size: 15px; margin: 0 0 10px 0; font-weight: bold; background-color: #e0e7ff; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #4338ca;">
-                                ${item.title}
-                            </h3>
-                            <div style="font-size: 14px; line-height: 1.6; padding: 0 12px; white-space: pre-wrap; color: #334155;">${safeValue}</div>
-                        </div>
-                    `;
+                if (answers.length === 0) {
+                    alert('Por favor, completa al menos un ítem del checklist para generar el documento.');
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
                 }
-            });
 
-            htmlContent += `</div>`;
+                if (!window.jspdf || !window.jspdf.jsPDF) {
+                    throw new Error('No se pudo cargar jsPDF. Verifica tu conexión a internet y vuelve a intentarlo.');
+                }
 
-            if (!hasContent) {
-                alert("Por favor, completa al menos un ítem del checklist para generar el documento.");
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'pt',
+                    format: 'letter'
+                });
+
+                const pageWidth = doc.internal.pageSize.getWidth();      // 612 pt
+                const pageHeight = doc.internal.pageSize.getHeight();    // 792 pt
+                const margin = 54;                                      // 0.75 pulgadas aprox.
+                const contentWidth = pageWidth - (margin * 2);
+                const bottomLimit = pageHeight - 62;
+                let y = 54;
+
+                function cleanText(text) {
+                    return String(text || '')
+                        .replace(/\r\n/g, '\n')
+                        .replace(/\t/g, '    ')
+                        .replace(/[\u2018\u2019]/g, "'")
+                        .replace(/[\u201C\u201D]/g, '"');
+                }
+
+                function ensureSpace(requiredHeight) {
+                    if (y + requiredHeight > bottomLimit) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                }
+
+                function addWrappedText(text, x, maxWidth, options = {}) {
+                    const fontSize = options.fontSize || 10.5;
+                    const lineHeight = options.lineHeight || 15;
+                    const fontStyle = options.fontStyle || 'normal';
+                    const color = options.color || [51, 65, 85];
+                    const paragraphs = cleanText(text).split('\n');
+
+                    doc.setFont('helvetica', fontStyle);
+                    doc.setFontSize(fontSize);
+                    doc.setTextColor(...color);
+
+                    paragraphs.forEach((paragraph, index) => {
+                        const content = paragraph.trim() === '' ? ' ' : paragraph;
+                        const lines = doc.splitTextToSize(content, maxWidth);
+
+                        lines.forEach(line => {
+                            ensureSpace(lineHeight + 2);
+                            doc.text(line, x, y);
+                            y += lineHeight;
+                        });
+
+                        if (index < paragraphs.length - 1) {
+                            y += 4;
+                        }
+                    });
+                }
+
+                function addHeader() {
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(20);
+                    doc.setTextColor(30, 27, 75);
+                    doc.text('InSynQ Checklist (v1.0)', pageWidth / 2, y, { align: 'center' });
+                    y += 24;
+
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(12);
+                    doc.setTextColor(71, 85, 105);
+                    doc.text('Intervention Synthesis Questions - Reporte', pageWidth / 2, y, { align: 'center' });
+                    y += 20;
+
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-MX')}`, pageWidth / 2, y, { align: 'center' });
+                    y += 18;
+
+                    doc.setDrawColor(79, 70, 229);
+                    doc.setLineWidth(1.5);
+                    doc.line(margin, y, pageWidth - margin, y);
+                    y += 28;
+                }
+
+                function addSectionTitle(title) {
+                    const titleLines = doc.splitTextToSize(cleanText(title), contentWidth - 24);
+                    const boxHeight = 14 + (titleLines.length * 13);
+                    ensureSpace(boxHeight + 10);
+
+                    doc.setFillColor(224, 231, 255);
+                    doc.roundedRect(margin, y - 8, contentWidth, boxHeight, 4, 4, 'F');
+                    doc.setFillColor(67, 56, 202);
+                    doc.rect(margin, y - 8, 4, boxHeight, 'F');
+
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.setTextColor(49, 46, 129);
+                    titleLines.forEach(line => {
+                        doc.text(line, margin + 12, y + 5);
+                        y += 13;
+                    });
+                    y += 12;
+                }
+
+                addHeader();
+
+                answers.forEach((item, index) => {
+                    addSectionTitle(item.title);
+                    addWrappedText(item.value, margin + 12, contentWidth - 24, {
+                        fontSize: 10.5,
+                        lineHeight: 15,
+                        color: [51, 65, 85]
+                    });
+                    y += index === answers.length - 1 ? 8 : 22;
+                });
+
+                // Pie de página y numeración en todas las páginas
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setDrawColor(203, 213, 225);
+                    doc.setLineWidth(0.5);
+                    doc.line(margin, pageHeight - 42, pageWidth - margin, pageHeight - 42);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(8.5);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text('Documento generado localmente desde la herramienta InSynQ Checklist.', margin, pageHeight - 26);
+                    doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, pageHeight - 26, { align: 'right' });
+                }
+
+                const filename = `InSynQ_Reporte_${new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(filename);
+            } catch (err) {
+                console.error('Error generando PDF:', err);
+                alert('Ocurrió un error al compilar el PDF: ' + err.message);
+            } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
-                return;
             }
-
-            // Inyectar en el contenedor del DOM (Evita el problema de página en blanco)
-            pdfContainer.innerHTML = htmlContent;
-
-            // Configuraciones de PDF
-            const opt = {
-                margin:       0,
-                filename:     `InSynQ_Reporte_${new Date().toISOString().split('T')[0]}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    logging: false,
-                    scrollY: 0,
-                    windowWidth: 800
-                },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            // Esperar un breve instante para asegurar que el DOM actualizó el HTML interno
-            setTimeout(() => {
-                html2pdf().set(opt).from(pdfContainer).save().then(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    pdfContainer.innerHTML = ''; // Limpiar tras exportar
-                }).catch(err => {
-                    console.error('Error generando PDF:', err);
-                    alert("Ocurrió un error al compilar el PDF.");
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    pdfContainer.innerHTML = '';
-                });
-            }, 100);
         }
     </script>
 </body>
