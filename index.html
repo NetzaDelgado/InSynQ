@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InSynQ Checklist - Creador de Reportes basado en https://www.insynq.info/</title>
+    <title>InSynQ Checklist (v1.0) - Creador de Reportes</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,45 +12,43 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
-        .card-hover {
-            transition: all 0.3s ease;
-        }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card-hover { transition: all 0.2s ease; }
         .card-hover:hover {
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border-color: #3b82f6;
+            border-color: #4f46e5;
         }
-        /* Ajustes para la impresión a PDF ocultando elementos UI */
-        .pdf-mode .hide-on-pdf {
-            display: none !important;
-        }
-        .pdf-mode textarea {
-            border: none;
-            resize: none;
-            background: transparent;
-            padding: 0;
-            overflow: visible;
+        
+        /* Contenedor temporal para generar el PDF (Oculto a la vista del usuario pero en el DOM) */
+        #pdf-temp-container {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            width: 800px; /* Ancho fijo para garantizar consistencia en PDF */
+            background: white;
+            z-index: -1;
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+<body class="bg-slate-50 text-slate-800 antialiased">
 
     <!-- Header -->
     <nav class="bg-indigo-900 text-white shadow-md sticky top-0 z-50">
         <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    InSynQ Checklist
+                    InSynQ Checklist (v1.0)
                 </h1>
-                <p class="text-sm text-indigo-200 mt-1">Intervention Synthesis Questions - Reporte</p>
+                <p class="text-sm text-indigo-200 mt-1">Intervention Synthesis Questions - Herramienta de Reporte</p>
             </div>
-            <button onclick="generatePDF()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 px-6 rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 w-full sm:w-auto justify-center">
+            <button onclick="generatePDF()" id="pdf-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-6 rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 w-full sm:w-auto justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
                 </svg>
-                Generar Documento PDF
+                Generar PDF
             </button>
         </div>
     </nav>
@@ -58,173 +56,171 @@
     <!-- Content -->
     <main class="max-w-5xl mx-auto px-4 py-8">
         
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 border-l-4 border-l-indigo-500">
-            <h2 class="text-xl font-bold text-slate-800 mb-3">Sobre la herramienta InSynQ</h2>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 border-l-4 border-l-indigo-600">
+            <h2 class="text-xl font-bold text-slate-800 mb-3">Sobre la herramienta</h2>
             <p class="text-slate-600 leading-relaxed text-sm sm:text-base">
-                Esta aplicación refleja fielmente los <strong>11 ítems del InSynQ Checklist</strong> original. 
-                InSynQ es una herramienta metodológica diseñada para ayudar a los autores a planificar y reportar 
-                las preguntas de síntesis en revisiones sistemáticas de intervenciones (PICO de la síntesis).
-                Completa los campos pertinentes a tu revisión y genera el PDF de soporte.
-                Herramienta basada en https://www.insynq.info/ la cual usa Creative Commons 4.0 (CC BY-NC-SA 4.0)
+                Esta aplicación web implementa de manera fiel los <strong>10 ítems de la versión 1.0 (2023)</strong> del 
+                <em>InSynQ (Intervention Synthesis Questions) checklist</em>. Diseñado por Brennan, Cumpston, Ryan y McKenzie, 
+                esta herramienta asiste a los autores a planificar y reportar las preguntas abordadas en las síntesis de revisiones sistemáticas de intervenciones.
             </p>
+            <p class="text-sm mt-3 text-slate-500 font-medium">Completa los campos relevantes para tu revisión. Solo los ítems con respuestas se incluirán en el PDF final.</p>
         </div>
 
         <!-- Formulario InSynQ -->
         <form id="insynq-form" class="space-y-6">
-            <!-- Los 11 items se generarán aquí con JS -->
+            <!-- Los 10 items se generarán aquí con JS -->
         </form>
 
     </main>
 
     <footer class="bg-slate-900 text-slate-400 text-center py-8 mt-12">
-        <p class="text-sm px-4">Esta es una adaptación digital del InSynQ Checklist original. App web desarrollada por Netzahualpilli Delgado Figueroa, @NetzaDelgado en X.</p>
-        <p class="text-xs mt-2 px-4 text-slate-500">Los datos que escribes no se almacenan en servidores externos, el PDF se genera directamente en tu navegador.</p>
+        <p class="text-sm px-4">Esta es una herramienta auxiliar para uso metodológico y académico, basada en el documento original bajo licencia CC BY-NC-SA 4.0 (InSynQ.info).</p>
+        <p class="text-xs mt-2 px-4 text-slate-500"> Desarrollo de WebApp por Netzahualpilli Delgado Figueroa, @NetzaDelgado en X.</p>
+        <p class="text-xs mt-2 px-4 text-slate-500">Tus datos no se envían a ningún servidor externo. Todo se procesa localmente en tu navegador.</p>
     </footer>
 
-    <!-- Lógica de Datos y Generación -->
+    <!-- Contenedor donde inyectaremos el HTML para el PDF -->
+    <div id="pdf-temp-container"></div>
+
     <script>
-        // Los 11 ítems OFICIALES del InSynQ Checklist traducidos y adaptados
+        // Los 10 ítems OFICIALES del InSynQ Checklist v1.0
         const insynqItems = [
             {
                 id: 'item-1',
-                title: 'Ítem 1. Grupos de población e intervención',
-                guide: 'Especificar los grupos de población e intervención que se utilizarán en la síntesis. Etiqueta cada grupo y defínelo con suficiente detalle para que sea replicable. Si hay intervenciones multicomponente o comparadores inactivos, explica cómo se agruparán.',
-                placeholder: 'Ej. Grupo 1: Adultos mayores con diabetes. Intervención A: Ejercicio aeróbico de alta intensidad...'
+                title: 'Ítem 1. Grupos de población (Population groups)',
+                guide: 'Especificar los grupos de población que se utilizarán en las síntesis. Define los criterios para cada grupo si planeas desglosar o agrupar diferentes tipos de participantes.',
+                placeholder: 'Ej. Grupo 1: Adultos (≥18 años). Grupo 2: Niños y adolescentes (<18 años)...'
             },
             {
                 id: 'item-2',
-                title: 'Ítem 2. Grupos de resultados (desenlaces)',
-                guide: 'Especificar los grupos de resultados que se utilizarán en la síntesis. Indica cómo se agruparán los diferentes resultados, instrumentos de medida y puntos temporales.',
-                placeholder: 'Ej. Los resultados de depresión medidos mediante escalas validadas (BDI, PHQ-9) se agruparán a corto plazo (< 3 meses) y largo plazo...'
+                title: 'Ítem 2. Grupos de intervención (Intervention groups)',
+                guide: 'Especificar los grupos de intervención que se utilizarán en las síntesis. Define claramente los criterios para agrupar intervenciones (ej. por mecanismo de acción, dosis, intensidad).',
+                placeholder: 'Ej. Intervenciones farmacológicas de alta intensidad vs intervenciones psicosociales...'
             },
             {
                 id: 'item-3',
-                title: 'Ítem 3. Justificación de los grupos',
-                guide: 'Dar una justificación (rationale) clara para los grupos creados. Explica la base conceptual, clínica o metodológica por la que se decidió agrupar participantes, intervenciones o resultados de esa manera.',
-                placeholder: 'Ej. Las intervenciones se agruparon por intensidad basándonos en las guías clínicas de...'
+                title: 'Ítem 3. Grupos de resultados / desenlaces (Outcome groups)',
+                guide: 'Especificar los grupos de resultados que se utilizarán en las síntesis. Describe cómo se agruparán medidas o puntos temporales (time points) similares.',
+                placeholder: 'Ej. Resultados primarios de eficacia agrupados a corto plazo (0-3 meses) y a largo plazo (>6 meses)...'
             },
             {
                 id: 'item-4',
-                title: 'Ítem 4. Rol de cada grupo en la síntesis',
-                guide: 'Identificar el rol de cada grupo en la síntesis. Aclara si cada grupo funcionará como la intervención experimental principal, el comparador/control, o si se evaluarán ambos roles.',
-                placeholder: 'Ej. El grupo de "atención habitual" servirá exclusivamente como comparador inactivo para todas las síntesis...'
+                title: 'Ítem 4. Rol de cada grupo (Role of each group)',
+                guide: 'Identificar el rol de cada grupo en las síntesis. Especifica claramente si un grupo actuará como la intervención experimental, como comparador/control, o ambos, dependiendo del análisis.',
+                placeholder: 'Ej. El grupo de "atención habitual" se utilizará únicamente como comparador en todas las síntesis...'
             },
             {
                 id: 'item-5',
-                title: 'Ítem 5. Comparaciones por pares',
-                guide: 'Especificar las comparaciones por pares (pairwise comparisons) que se harán entre los grupos de intervención. Define qué grupo se comparará contra cuál.',
-                placeholder: 'Ej. Comparación 1: Ejercicio aeróbico vs Atención habitual. Comparación 2: Ejercicio de resistencia vs Atención habitual...'
+                title: 'Ítem 5. Comparaciones (Comparisons)',
+                guide: 'Especificar las comparaciones (pairwise comparisons o de múltiples tratamientos) que se realizarán en las síntesis entre los grupos identificados en el Ítem 2 y 4.',
+                placeholder: 'Ej. Comparación A: Terapia cognitivo-conductual (TCC) vs Atención habitual. Comparación B: TCC vs Terapia farmacológica...'
             },
             {
                 id: 'item-6',
-                title: 'Ítem 6. Alineación con los Objetivos',
-                guide: 'Asegurar que los Objetivos (de la revisión) se alineen con las preguntas abordadas en la síntesis. Muestra que las síntesis planificadas responden directamente a los objetivos generales.',
-                placeholder: 'Ej. La Comparación 1 responde al objetivo primario de evaluar la efectividad sobre la calidad de vida...'
+                title: 'Ítem 6. Grupos metodológicos (Methodological groups)',
+                guide: 'Especificar los grupos de diseño de estudio u otros grupos metodológicos que se utilizarán en las síntesis (ej. sintetizar ensayos aleatorizados por separado de estudios observacionales).',
+                placeholder: 'Ej. Los Ensayos Controlados Aleatorizados (ECA) se sintetizarán independientemente de los estudios cuasiexperimentales...'
             },
             {
                 id: 'item-7',
-                title: 'Ítem 7. Grupos metodológicos',
-                guide: 'Especificar los grupos metodológicos que se utilizarán en la síntesis. Detalla si agruparás los estudios basándote en el diseño (ej. ECA vs Cuasiexperimentales) u otras características.',
-                placeholder: 'Ej. Los ensayos controlados aleatorizados y los estudios observacionales se sintetizarán por separado...'
+                title: 'Ítem 7. Síntesis de daños (Synthesis of harms)',
+                guide: 'Especificar los grupos y comparaciones que se utilizarán específicamente en la síntesis de daños (eventos adversos), ya que pueden diferir de la síntesis de beneficios.',
+                placeholder: 'Ej. Para los daños, cualquier intervención farmacológica se agrupará y comparará frente a placebo para capturar efectos adversos generales...'
             },
             {
                 id: 'item-8',
-                title: 'Ítem 8. Participación de partes interesadas',
-                guide: 'Identificar cómo los pacientes, el público u otras partes interesadas (stakeholders) informaron el desarrollo de las preguntas que se abordarán en la síntesis.',
-                placeholder: 'Ej. Se realizó un panel consultivo con 5 pacientes que ayudaron a priorizar los desenlaces de fatiga...'
+                title: 'Ítem 8. Consulta con partes interesadas (Stakeholders)',
+                guide: 'Identificar cómo la consulta con pacientes, público u otras partes interesadas (stakeholders) informó el desarrollo de las preguntas que se abordarán en la síntesis.',
+                placeholder: 'Ej. Se realizó un grupo focal con pacientes para determinar qué desenlaces secundarios debían priorizarse en el análisis...'
             },
             {
                 id: 'item-9',
-                title: 'Ítem 9. Proceso de decisión de elegibilidad',
-                guide: 'Describir los procesos utilizados para decidir qué estudios eran elegibles para cada síntesis. ¿Cómo se asignaron los estudios incluidos a comparaciones específicas?',
-                placeholder: 'Ej. Dos revisores independientes asignaron los estudios a cada comparación utilizando un algoritmo de toma de decisiones...'
+                title: 'Ítem 9. Procesos para determinar la elegibilidad de los estudios',
+                guide: 'Describir los procesos utilizados para decidir qué estudios eran elegibles para cada síntesis, particularmente si los estudios tienen múltiples brazos de intervención o reportan múltiples resultados.',
+                placeholder: 'Ej. Se utilizó un algoritmo predefinido en el protocolo para seleccionar un solo brazo de control cuando existían múltiples comparadores inactivos...'
             },
             {
                 id: 'item-10',
-                title: 'Ítem 10. Cambios respecto al protocolo',
-                guide: 'Identificar los cambios realizados en la etapa de revisión a los grupos o comparaciones que se habían reportado originalmente en el protocolo (y justificar el porqué).',
-                placeholder: 'Ej. Planeamos separar las dosis altas y bajas, pero debido al bajo número de estudios, se agruparon en una sola síntesis...'
-            },
-            {
-                id: 'item-11',
-                title: 'Ítem 11. Reporte acorde a los métodos',
-                guide: 'Reportar los resultados de acuerdo con los grupos y comparaciones especificados en los métodos. (Esta sección documenta que tu reporte final refleja tu planificación).',
-                placeholder: 'Ej. Todos los diagramas de bosque y tablas de resumen de hallazgos (SoF) se estructuran de acuerdo con las 3 comparaciones detalladas en el ítem 5.'
+                title: 'Ítem 10. Cambios respecto al protocolo (Changes from protocol)',
+                guide: 'Identificar y justificar los cambios realizados en la etapa de revisión (review stage) a los grupos o comparaciones que se habían informado originalmente en el protocolo.',
+                placeholder: 'Ej. Planeamos hacer análisis de subgrupos por nivel de severidad, pero debido a datos insuficientes, estos grupos se combinaron en el análisis principal...'
             }
         ];
 
-        // Renderizar los 11 items del formulario
+        // Renderizar los 10 items del formulario en el DOM
         function renderForm() {
             const formContainer = document.getElementById('insynq-form');
             
-            insynqItems.forEach((item, index) => {
+            insynqItems.forEach((item) => {
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-xl shadow-sm border border-slate-200 p-6 card-hover';
+                card.className = 'bg-white rounded-xl shadow-sm border border-slate-200 p-5 sm:p-6 card-hover';
                 
                 card.innerHTML = `
                     <div class="mb-4">
-                        <label for="${item.id}" class="block text-lg font-bold text-indigo-900 mb-2">
+                        <label for="${item.id}" class="block text-lg font-bold text-indigo-950 mb-2">
                             ${item.title}
                         </label>
-                        <div class="bg-indigo-50/50 p-4 rounded-lg border border-indigo-100 mb-4 text-sm text-slate-700">
-                            <span class="font-semibold text-indigo-800">Guía de reporte:</span> ${item.guide}
+                        <div class="bg-indigo-50/70 p-4 rounded-md border border-indigo-100 mb-4 text-sm text-slate-700 leading-relaxed">
+                            <span class="font-bold text-indigo-900">Guía:</span> ${item.guide}
                         </div>
                     </div>
                     <textarea 
                         id="${item.id}" 
                         rows="3" 
                         oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"
-                        class="w-full rounded-lg border-slate-300 border p-4 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow" 
+                        class="w-full rounded-lg border-slate-300 border p-4 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-shadow resize-y" 
                         placeholder="${item.placeholder}"></textarea>
                 `;
                 formContainer.appendChild(card);
             });
         }
 
-        // Inicializar
         document.addEventListener('DOMContentLoaded', renderForm);
 
-        // Generar PDF usando html2pdf
+        // Generar PDF asegurando que no salga en blanco
         function generatePDF() {
-            const btn = document.querySelector('button');
+            const btn = document.getElementById('pdf-btn');
             const originalText = btn.innerHTML;
-            btn.innerHTML = 'Generando Documento...';
+            btn.innerHTML = 'Generando... por favor espera';
             btn.disabled = true;
 
-            // Elemento virtual para el documento
-            const pdfContainer = document.createElement('div');
-            pdfContainer.style.padding = '40px 30px';
-            pdfContainer.style.fontFamily = 'Arial, sans-serif';
-            pdfContainer.style.color = '#1e293b';
-
-            // Cabecera formal
+            // En lugar de un elemento "al vuelo", utilizamos un contenedor que ESTÁ en el DOM (pero oculto)
+            const pdfContainer = document.getElementById('pdf-temp-container');
+            
+            // Construir el HTML
             let htmlContent = `
-                <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #4f46e5; padding-bottom: 20px;">
-                    <h1 style="color: #312e81; font-size: 24px; margin-bottom: 8px; font-weight: bold;">Reporte: InSynQ Checklist</h1>
-                    <p style="color: #64748b; font-size: 14px;">Intervention Synthesis Questions</p>
-                    <p style="color: #64748b; font-size: 12px; margin-top: 10px;">Fecha de generación: ${new Date().toLocaleDateString()}</p>
-                </div>
+                <div style="padding: 40px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; max-width: 800px; margin: 0 auto;">
+                    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4f46e5; padding-bottom: 20px;">
+                        <h1 style="color: #1e1b4b; font-size: 24px; margin: 0 0 10px 0; font-weight: bold;">InSynQ Checklist (v1.0)</h1>
+                        <h2 style="color: #475569; font-size: 16px; margin: 0 0 15px 0; font-weight: normal;">Intervention Synthesis Questions - Reporte</h2>
+                        <p style="color: #64748b; font-size: 12px; margin: 0;">Fecha de generación: ${new Date().toLocaleDateString()}</p>
+                    </div>
             `;
 
             let hasContent = false;
 
-            // Ensamblar cada item
+            // Extraer textos y ensamblar
             insynqItems.forEach(item => {
                 const textarea = document.getElementById(item.id);
                 let value = textarea.value.trim();
                 
                 if (value !== '') {
                     hasContent = true;
+                    // Escapar caracteres para evitar problemas de renderizado HTML
+                    const safeValue = value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    
                     htmlContent += `
-                        <div style="margin-bottom: 30px; page-break-inside: avoid;">
-                            <h3 style="color: #3730a3; font-size: 16px; margin-bottom: 10px; font-weight: bold; border-left: 4px solid #4f46e5; padding-left: 10px; background-color: #f8fafc; padding-top: 6px; padding-bottom: 6px;">
+                        <div style="margin-bottom: 25px; page-break-inside: avoid;">
+                            <h3 style="color: #312e81; font-size: 15px; margin: 0 0 10px 0; font-weight: bold; background-color: #e0e7ff; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #4338ca;">
                                 ${item.title}
                             </h3>
-                            <div style="font-size: 14px; line-height: 1.6; padding-left: 14px; white-space: pre-wrap; color: #334155;">${value}</div>
+                            <div style="font-size: 14px; line-height: 1.6; padding: 0 12px; white-space: pre-wrap; color: #334155;">${safeValue}</div>
                         </div>
                     `;
                 }
             });
+
+            htmlContent += `</div>`;
 
             if (!hasContent) {
                 alert("Por favor, completa al menos un ítem del checklist para generar el documento.");
@@ -233,27 +229,38 @@
                 return;
             }
 
+            // Inyectar en el contenedor del DOM (Evita el problema de página en blanco)
             pdfContainer.innerHTML = htmlContent;
 
             // Configuraciones de PDF
             const opt = {
-                margin:       10,
-                filename:     `InSynQ_Checklist_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+                margin:       0,
+                filename:     `InSynQ_Reporte_${new Date().toISOString().split('T')[0]}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    scrollY: 0,
+                    windowWidth: 800
+                },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
 
-            // Ejecución
-            html2pdf().set(opt).from(pdfContainer).save().then(() => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }).catch(err => {
-                console.error('Error generando PDF:', err);
-                alert("Ocurrió un error al compilar el PDF.");
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            });
+            // Esperar un breve instante para asegurar que el DOM actualizó el HTML interno
+            setTimeout(() => {
+                html2pdf().set(opt).from(pdfContainer).save().then(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    pdfContainer.innerHTML = ''; // Limpiar tras exportar
+                }).catch(err => {
+                    console.error('Error generando PDF:', err);
+                    alert("Ocurrió un error al compilar el PDF.");
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    pdfContainer.innerHTML = '';
+                });
+            }, 100);
         }
     </script>
 </body>
